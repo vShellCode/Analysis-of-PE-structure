@@ -1,15 +1,10 @@
 #pragma once
 #include <windows.h>
 #include <iostream>
+
 #define MessageBoxAToState 0x75031060
 
-char INFILEPATH[] = "D:\\PETool 1.0.0.5.exe";
 
-char OUTFILEPATH[] = "D:\\PETool 1.0.0.5(1).exe";
-
-const char SHELLCODE[] = { 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00,
-						   0xE8, 0x00, 0x00, 0x00, 0x00,
-						   0xE9, 0x00, 0x00, 0x00, 0x00 };
 
 //**************************************************************************								
 //ReadPEFile:将文件读取到缓冲区								
