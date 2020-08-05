@@ -114,63 +114,51 @@ DWORD CopyImageBufferToNewBuffer(IN LPVOID pImageBuffer, OUT LPVOID* pNewBuffer)
 	return fileSize;
 }
 
-BOOL AddImageBufferToShellCode(IN LPVOID pImageBuffer, IN const char* pShellCode, OUT LPVOID* pNewBuffer)
+BOOL AddImageBufferToShellCode(IN OUT LPVOID pImageBuffer, IN const char* pShellCode, IN size_t ShellCodeSize)
 {
-//	//计算ShellCode大小
-//	size_t shellCodeSize = 0;
-//	const char* pNum = pShellCode;
-//	while (*pNum++)
-//	{
-//		shellCodeSize++;
-//	}
-//	//DOC头
-//	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pImageBuffer;
-//	//NT头
-//	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
-//	//标准PE头
-//	PIMAGE_FILE_HEADER pPEHeader = (PIMAGE_FILE_HEADER)(((DWORD)pNTHeader) + 4);
-//	//可选PE头
-//	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = (PIMAGE_OPTIONAL_HEADER32)((DWORD)pPEHeader + IMAGE_SIZEOF_FILE_HEADER);
-//	//节表解析
-//	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
-//	//计算空间是否足够
-//	DWORD whiteSpaceSize = 0;
-//	for (int i = 0; i < pPEHeader->NumberOfSections; i++)
-//	{
-//		pSectionHeader++;
-//		//计算对其前的长度和对其后的长度，判断空白区域是否足够
-//		whiteSpaceSize = pSectionHeader->SizeOfRawData - pSectionHeader->Misc.VirtualSize;
-//		if (shellCodeSize + 16 < whiteSpaceSize)
-//		{
-//			printf("%s: %d  %s %d \n", "节表", i , "空白区域剩余：", whiteSpaceSize);
-//			printf("添加代码：%s \n", pShellCode);
-//			char* pShellCodeBuffer = (char*)pImageBuffer;
-//			whiteSpaceSize = (pSectionHeader->Misc.VirtualSize + pSectionHeader->VirtualAddress);
-//			*pShellCodeBuffer += whiteSpaceSize;
-//			printf("添加代码：%s \n", pShellCode);
-//		}
-//		else
-//		{
-//			printf("%s: %d  %s \n", "节表", i, "空白区域不足！");
-//		}
-//	}
-//
-//	/*
-//	VirtualSize：            0x00000200     0001BA9A     [V(VS),内存中大小(对齐前的长度).]
-//VirtualAddress：         0x00000204     00001000     [V(VO),内存中偏移(该块的RVA).]
-//SizeOfRawData：          0x00000208     0001C000     [R(RS),文件中大小(对齐后的长度).]
-//PointerToRawData：       0x0000020c     00001000     [R(RO),文件中偏移.]
-//PointerToRelocation：    0x00000210     00000000     [在OBJ文件中使用,重定位的偏移.]
-//PointerToLinenumbers：   0x00000214     00000000     [行号表的偏移,提供调试.]
-//NumberOfRelocations：    0x00000216     0000         [在OBJ文件中使用,重定位项数目.]
-//NumberOfLinenumbers：    0x00000218     0000         [行号表中行号的数目.]
-//Characteristics：        0x0000021c     60000020     [标志(块属性):20000000h 40000000h 00000020h ]
-//	
-//	*/
-	return true;
+	//DOC头
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pImageBuffer;
+	//NT头
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+	//标准PE头
+	PIMAGE_FILE_HEADER pPEHeader = (PIMAGE_FILE_HEADER)(((DWORD)pNTHeader) + 4);
+	//可选PE头
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = (PIMAGE_OPTIONAL_HEADER32)((DWORD)pPEHeader + IMAGE_SIZEOF_FILE_HEADER);
+	//节表解析
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	//计算空间是否足够
+	DWORD whiteSpaceSize = 0;
+	for (int i = 0; i < pPEHeader->NumberOfSections; i++)
+	{
+		//计算对其前的长度和对其后的长度，判断空白区域是否足够
+		whiteSpaceSize = pSectionHeader->SizeOfRawData - pSectionHeader->Misc.VirtualSize;
+		if (sizeof(*pShellCode) + 16 < whiteSpaceSize)
+		{
+			printf("%s: %d  %s %d \n", "节表", i, "空白区域剩余：", whiteSpaceSize);
+			//开始添加ShellCode
+			char* pShellCodeAddress = (char*)pImageBuffer;
+			pShellCodeAddress = pShellCodeAddress + (pSectionHeader->Misc.VirtualSize + pSectionHeader->VirtualAddress) + 22;
+			memcpy(pShellCodeAddress, pShellCode, ShellCodeSize);
+			//AddCharacterCompressionToMemory(pShellCode, shellCodeSize, pShellCodeBuffer); //如果是字符串用这个
+			//计算E8   x = 要跳转的地址 - （E8的地址 + 5）
+			int e8CallAddress = MessageBoxAToState - ((int)(pShellCodeAddress + 0xd) - (int)pImageBuffer + pOptionHeader->ImageBase);
+			*(int*)(pShellCodeAddress + 0x9) = e8CallAddress;
+			//计算E9   x = 要跳转的地址 - （E8的地址 + 5）
+			int e9CallAddress = (pOptionHeader->AddressOfEntryPoint + pOptionHeader->ImageBase) - ((int)(pShellCodeAddress + 0x12 - (int)pImageBuffer) + pOptionHeader->ImageBase);
+			*(int*)(pShellCodeAddress + 0xe) = e9CallAddress;
+			//修改OEP
+			pOptionHeader->AddressOfEntryPoint = (pShellCodeAddress - (char*)pImageBuffer);
+			pShellCodeAddress = nullptr;
+			return true;
+		}
+		else
+		{
+			printf("%s: %d  %s \n", "节表", i, "空白区域不足！");
+		}
+		pSectionHeader++;
+	}
+	return false;
 }
-
-#define MessageBoxAToState 0x75031060
 
 BOOL AddFileBufferToShellCode(IN OUT LPVOID pFileBuffer, IN const char* pShellCode, IN size_t ShellCodeSize)
 {
@@ -218,8 +206,6 @@ BOOL AddFileBufferToShellCode(IN OUT LPVOID pFileBuffer, IN const char* pShellCo
 	return false;
 }
 
-
-
 BOOL MemeryToFile(IN LPVOID pMemBuffer, IN size_t size, OUT LPSTR lpszFile)
 {
 	FILE * pFlieStream = NULL;
@@ -263,6 +249,68 @@ DWORD RvaToFileOffset(IN LPVOID pFileBuffer, IN DWORD dwRva)
 		pTempSectionHeader++;
 	}
 	return 0;
+}
+
+BOOL AddFileBufferToSectionTable(IN LPVOID pFileBuffer, OUT LPVOID* pNewBuffer, IN const char* sectionTable, IN size_t SsectionTableSize)
+{
+	//DOC头
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	//NT头
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+	//标准PE头
+	PIMAGE_FILE_HEADER pPEHeader = (PIMAGE_FILE_HEADER)(((DWORD)pNTHeader) + 0x4);
+	//可选PE头
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = (PIMAGE_OPTIONAL_HEADER32)((DWORD)pPEHeader + IMAGE_SIZEOF_FILE_HEADER);
+	//节表解析
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	//计算空间是否足够
+	DWORD whiteSpaceSize = 0;
+	//1、判断是否有足够的空间，可以添加一个节表.
+
+	//判断条件：
+	//	SizeOfHeader - (DOS + 垃圾数据 + PE标记 + 标准PE头 + 可选PE头 + 已存在节表) >= 2个节表的大小 （如果只有一个节表以上的空间也可以加不会报错，但是会有安全隐患）
+	whiteSpaceSize = pNTHeader->OptionalHeader.SizeOfHeaders - (pDosHeader->e_lfanew + sizeof(pNTHeader->Signature) + sizeof(pNTHeader->FileHeader) + pPEHeader->SizeOfOptionalHeader + ((pNTHeader->FileHeader.NumberOfSections + 1) * sizeof(IMAGE_SECTION_HEADER)));
+	if (whiteSpaceSize < sizeof(IMAGE_SECTION_HEADER))
+	{
+		printf("数据缓冲区太小无法添加节表！");
+		return false;
+	}
+	//Copy一个新的节表 
+	char* pTmpFile = (char*)pFileBuffer;
+	char* pTmpFileCopy = (char*)pFileBuffer;
+	pTmpFile = pTmpFile + (pDosHeader->e_lfanew + sizeof(pNTHeader->Signature) + sizeof(pNTHeader->FileHeader) + pPEHeader->SizeOfOptionalHeader);
+	pTmpFileCopy = pTmpFileCopy + (pDosHeader->e_lfanew + sizeof(pNTHeader->Signature) + sizeof(pNTHeader->FileHeader) + pPEHeader->SizeOfOptionalHeader + ((pNTHeader->FileHeader.NumberOfSections) * sizeof(IMAGE_SECTION_HEADER)));
+	memcpy(pTmpFileCopy, pTmpFile, sizeof(IMAGE_SECTION_HEADER));
+	//在新增节后面 填充一个节大小的000 (忽略)
+	//修改PE头中节的数量
+	pPEHeader->NumberOfSections = pPEHeader->NumberOfSections + 1;
+	//修改sizeOfImage的大小
+	pOptionHeader->SizeOfImage = pOptionHeader->SizeOfImage + SsectionTableSize;
+	//再原有数据的最后，新增一个节的数据(内存对齐的整数倍)
+	//使用PE结构计算文件大小
+	PIMAGE_SECTION_HEADER pTempSectionHeaderTo = pSectionHeader;
+	for (DWORD i = 2; i < pPEHeader->NumberOfSections; i++)
+		pTempSectionHeaderTo++;
+	DWORD fileSize = pTempSectionHeaderTo->SizeOfRawData + pTempSectionHeaderTo->PointerToRawData;
+	//申请File大小空间
+	*pNewBuffer = (PDWORD)malloc(fileSize + SsectionTableSize);
+	if (!*pNewBuffer)
+	{
+		printf("%s", "申请ImageBuffer失败！");
+		free(*pNewBuffer);
+		return false;
+	}
+	memset(*pNewBuffer, 0, fileSize + SsectionTableSize);
+	//修正节表属性
+	PIMAGE_SECTION_HEADER pTempSectionHeaderTo2 = (PIMAGE_SECTION_HEADER)pTmpFileCopy;
+	memcpy(pTempSectionHeaderTo2->Name, sectionTable, 4);
+	pTempSectionHeaderTo2->Misc.VirtualSize = SsectionTableSize;
+	pTempSectionHeaderTo2->VirtualAddress = pTempSectionHeaderTo->VirtualAddress + Align(pTempSectionHeaderTo->Misc.VirtualSize, pNTHeader->OptionalHeader.SectionAlignment);
+	pTempSectionHeaderTo2->SizeOfRawData = Align(SsectionTableSize, pNTHeader->OptionalHeader.FileAlignment);
+	pTempSectionHeaderTo2->PointerToRawData = pTempSectionHeaderTo->PointerToRawData + Align(pTempSectionHeaderTo->SizeOfRawData, pNTHeader->OptionalHeader.FileAlignment);
+	memcpy(*pNewBuffer, pFileBuffer, fileSize);
+	return true;
 }
 
 void PrintPEHeaders(LPVOID* pFileBuffer)
@@ -318,12 +366,6 @@ void PrintPEHeaders(LPVOID* pFileBuffer)
 	//节表解析
 	PIMAGE_SECTION_HEADER pSectionHeader = NULL;
 	pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
-	//printf("Name: %s\n", pSectionHeader->Name);
-	//printf("没有对齐前的真实尺寸: %x\n", pSectionHeader->Misc);
-	//printf("节区在内存中的偏移地址: %x\n", pSectionHeader->VirtualAddress);
-	//printf("节在文件中对齐后的尺寸: %x\n", pSectionHeader->SizeOfRawData);
-	//printf("节区在文件中的偏移: %x\n", pSectionHeader->PointerToRawData);
-	//printf("节的属性: %x\n", pSectionHeader->Characteristics);
 	printf("\n");
 	for (int i = 0; i < pPEHeader->NumberOfSections; i++)
 	{
@@ -350,4 +392,13 @@ void AddCharacterCompressionToMemory(IN const char* shellCode, size_t shellCodeS
 		memcpy(temp, buff + i * 2, 2);
 		*((unsigned char*)(pFileState)+i) = strtoul(temp, NULL, 16);
 	}
+}
+DWORD Align(DWORD size, DWORD ALIGN_BASE)
+{
+	assert(0 != ALIGN_BASE);
+	if (size % ALIGN_BASE)
+	{
+		size = (size / ALIGN_BASE + 1) * ALIGN_BASE;
+	}
+	return size;
 }

@@ -6,6 +6,7 @@
 
 
 
+
 //**************************************************************************								
 //ReadPEFile:将文件读取到缓冲区								
 //参数说明：								
@@ -39,18 +40,18 @@ DWORD CopyFileBufferToImageBuffer(IN LPVOID pFileBuffer, OUT LPVOID* pImageBuffe
 DWORD CopyImageBufferToNewBuffer(IN LPVOID pImageBuffer, OUT LPVOID* pNewBuffer);
 
 //**************************************************************************								
-//AddImageBufferToShellCode:将ImageBuffer中添加恶意代码								
+//AddImageBufferToShellCode:将ImageBuffer中添加代码								
 //参数说明：								
 //pImageBuffer ImageBuffer指针								
 //pNewBuffer NewBuffer指针
-//pShellCode ShellCode指针
+//pShellCodeSize ShellCodeSize大小
 //返回值说明：								
 //读取失败返回false  否则返回true							
 //**************************************************************************								
-BOOL AddImageBufferToShellCode(IN LPVOID pImageBuffer, IN const char* pShellCode,OUT LPVOID* pNewBuffer);
+BOOL AddImageBufferToShellCode(IN OUT LPVOID pImageBuffer, IN const char* pShellCode, IN size_t pShellCodeSize);
 
 //**************************************************************************								
-//AddImageBufferToShellCode:将FileBuffer中添加恶意代码								
+//AddImageBufferToShellCode:将FileBuffer中添加代码								
 //参数说明：								
 //pFileBuffer FileBuffer指针								
 //pNewBuffer NewBuffer指针
@@ -59,6 +60,8 @@ BOOL AddImageBufferToShellCode(IN LPVOID pImageBuffer, IN const char* pShellCode
 //读取失败返回false  否则返回true							
 //**************************************************************************		
 BOOL AddFileBufferToShellCode(IN LPVOID pFileBuffer, IN const char* pShellCode, IN size_t ShellCodeSize);
+
+
 
 //**************************************************************************								
 //MemeryTOFile:将内存中的数据复制到文件								
@@ -72,6 +75,8 @@ BOOL AddFileBufferToShellCode(IN LPVOID pFileBuffer, IN const char* pShellCode, 
 BOOL MemeryToFile(IN LPVOID pMemBuffer, IN size_t size, OUT LPSTR lpszFile);
 
 
+
+
 //**************************************************************************								
 //RvaToFileOffset:将内存偏移转换为文件偏移								
 //参数说明：								
@@ -81,6 +86,27 @@ BOOL MemeryToFile(IN LPVOID pMemBuffer, IN size_t size, OUT LPSTR lpszFile);
 //返回转换后的FOA的值  如果失败返回0								
 //**************************************************************************								
 DWORD RvaToFileOffset(IN LPVOID pFileBuffer, IN DWORD dwRva);
+
+
+//**************************************************************************	
+//**************************************************************************	
+//**************************************************************************	
+//下方为测试代码
+//**************************************************************************	
+//**************************************************************************	
+//**************************************************************************	
+
+//**************************************************************************								
+//AddImageBufferToShellCode:将FileBuffer中添加节表						
+//参数说明：								
+//pFileBuffer 文件指针								
+//pNewBuffer 新文件指针
+//sectionTable 添加节表名
+//SsectionTableSize 添加节表大小
+//返回值说明：								
+//添加失败返回false  否则返回true							
+//**************************************************************************	
+BOOL AddFileBufferToSectionTable(IN LPVOID pFileBuffer, OUT LPVOID* pNewBuffer, IN const char* sectionTable, IN size_t SsectionTableSize);
 
 //**************************************************************************								
 //PrintPEHeaders:打印节表信息				
@@ -101,3 +127,12 @@ void PrintPEHeaders(LPVOID* pFileBuffer);
 //无							
 //**************************************************************************		
 void AddCharacterCompressionToMemory(IN const char* shellCode, size_t shellCodeSize, OUT char* pFileState);
+
+
+#include <assert.h>
+//函数功能: 以ALIGN_BASE为对齐度对齐size
+//参数说明: 
+//		size:需要对齐的大小
+//		ALIGN_BASE:对齐度
+//返回值:	返回对齐后的大小
+DWORD Align(DWORD size, DWORD ALIGN_BASE);
