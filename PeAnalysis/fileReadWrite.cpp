@@ -313,6 +313,42 @@ BOOL AddFileBufferToSectionTable(IN LPVOID pFileBuffer, OUT LPVOID* pNewBuffer, 
 	return true;
 }
 
+BOOL DeleteDarbageDataUnderDOS(IN OUT LPVOID* pFileBuffer)
+{
+	if (*((PWORD)*pFileBuffer) != IMAGE_DOS_SIGNATURE)
+	{
+		printf("MZ文件标志头不存在！");
+		free(*pFileBuffer);
+		return false;
+	}
+	//DOC头
+	PIMAGE_DOS_HEADER pDosHeader = NULL;
+	pDosHeader = (PIMAGE_DOS_HEADER)*pFileBuffer;
+	//NT头
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+	//标准PE头
+	PIMAGE_FILE_HEADER pPEHeader = (PIMAGE_FILE_HEADER)(((DWORD)pNTHeader) + 0x4);
+	//可选PE头
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = (PIMAGE_OPTIONAL_HEADER32)((DWORD)pPEHeader + IMAGE_SIZEOF_FILE_HEADER);
+	//节表解析
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	printf("**********DOC头**********\n");
+	printf("PE标记：%x\n", pDosHeader->e_magic);
+	printf("PE文件偏移：%x\n", pDosHeader->e_lfanew);
+	if (*((PDWORD)((DWORD)*pFileBuffer + pDosHeader->e_lfanew)) != IMAGE_NT_SIGNATURE)
+	{
+		printf("PE文件标标记不存在！");
+		free(*pFileBuffer);
+		return false;
+	}
+	//提升PE文件后面的位置
+	memcpy(((CHAR*)*pFileBuffer + sizeof(IMAGE_DOS_HEADER)), ((CHAR*)*pFileBuffer+ pDosHeader->e_lfanew), (pOptionHeader->SizeOfHeaders - pDosHeader->e_lfanew));
+	//修改e_Ifanew指向的位置
+	pDosHeader->e_lfanew = ((CHAR*)*pFileBuffer + sizeof(IMAGE_DOS_HEADER)) - *pFileBuffer;
+	return true;
+}
+
 void PrintPEHeaders(LPVOID* pFileBuffer)
 {
 	if (*((PWORD)*pFileBuffer) != IMAGE_DOS_SIGNATURE)

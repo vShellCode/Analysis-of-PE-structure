@@ -11,20 +11,42 @@ const char SHELLCODE[] = { 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00,
 int main()
 {
 
-	//测试添加节表空白节代码
+	//测试添加节表空白节代码 清理Dos垃圾数据
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
 	LPVOID pFileBuffer = NULL;
 	int fileSize = ReadPEFile(INFILEPATH, &pFileBuffer);
-	//PrintPEHeaders(&pFileBuffer);
-	//printf("%d", sizeof(SHELLCODE));
 
 	LPVOID pNewBuffer = nullptr;
+	bool bIfOn = DeleteDarbageDataUnderDOS(&pFileBuffer);
+	if (!bIfOn)
+	{
+		printf("%s", "删除Dos下垃圾数据失败！");
+		return 0;
+	}
 	if (false == AddFileBufferToSectionTable(pFileBuffer, &pNewBuffer,".tttt", 0x1000))
 	{
 		printf("%s", "添加节表失败！");
 		return 0;
 	}
 	BOOL blZoo = MemeryToFile(pNewBuffer, fileSize + 0x1000, OUTFILEPATH);
+	////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+	//测试添加节表空白节代码
+	////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//LPVOID pFileBuffer = NULL;
+	//int fileSize = ReadPEFile(INFILEPATH, &pFileBuffer);
+	////PrintPEHeaders(&pFileBuffer);
+	////printf("%d", sizeof(SHELLCODE));
+
+	//LPVOID pNewBuffer = nullptr;
+	//if (false == AddFileBufferToSectionTable(pFileBuffer, &pNewBuffer,".tttt", 0x1000))
+	//{
+	//	printf("%s", "添加节表失败！");
+	//	return 0;
+	//}
+	//BOOL blZoo = MemeryToFile(pNewBuffer, fileSize + 0x1000, OUTFILEPATH);
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
