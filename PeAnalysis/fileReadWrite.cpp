@@ -160,6 +160,41 @@ BOOL AddImageBufferToShellCode(IN OUT LPVOID pImageBuffer, IN const char* pShell
 	return false;
 }
 
+BOOL EnlargedNodalRegion(IN LPVOID pImageBuffer, OUT LPVOID* pNewBuffer, size_t EnlargeSize)
+{
+	//DOC头
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pImageBuffer;
+	//NT头
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+	//标准PE头
+	PIMAGE_FILE_HEADER pPEHeader = (PIMAGE_FILE_HEADER)(((DWORD)pNTHeader) + 4);
+	//可选PE头
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = (PIMAGE_OPTIONAL_HEADER32)((DWORD)pPEHeader + IMAGE_SIZEOF_FILE_HEADER);
+	if (*((PWORD)pImageBuffer) != IMAGE_DOS_SIGNATURE)
+	{
+		printf("MZ文件标志头不存在！");
+		free(pImageBuffer);
+		return false;
+	}
+	PIMAGE_SECTION_HEADER pSectionHeader = NULL;
+	//申请新的空间
+	pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	for (int i = 1; i < pPEHeader->NumberOfSections; i++)
+		pSectionHeader++;
+	pSectionHeader->SizeOfRawData = pSectionHeader->Misc.VirtualSize = Align((pSectionHeader->SizeOfRawData += EnlargeSize) > (pSectionHeader->Misc.VirtualSize += EnlargeSize) ?
+		pSectionHeader->SizeOfRawData: pSectionHeader->Misc.VirtualSize, pOptionHeader->SectionAlignment);
+	*pNewBuffer = (PDWORD)malloc(pOptionHeader->SizeOfImage + EnlargeSize);
+	if (!*pNewBuffer)
+	{
+		printf("%s", "申请新扩大节后的空间失败！");
+		free(*pNewBuffer);
+		return false;
+	}
+	memset(*pNewBuffer, 0, pOptionHeader->SizeOfImage);
+	memcpy(*pNewBuffer, pImageBuffer, pOptionHeader->SizeOfImage);
+	return true;
+}
+
 BOOL AddFileBufferToShellCode(IN OUT LPVOID pFileBuffer, IN const char* pShellCode, IN size_t ShellCodeSize)
 {
 	//DOC头
@@ -204,6 +239,33 @@ BOOL AddFileBufferToShellCode(IN OUT LPVOID pFileBuffer, IN const char* pShellCo
 		pSectionHeader++;
 	}
 	return false;
+}
+
+BOOL MergingSection(IN OUT LPVOID* pImageBuffer)
+{
+	//DOC头
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)*pImageBuffer;
+	//NT头
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pDosHeader + pDosHeader->e_lfanew);
+	//标准PE头
+	PIMAGE_FILE_HEADER pPEHeader = (PIMAGE_FILE_HEADER)(((DWORD)pNTHeader) + 4);
+	//可选PE头
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = (PIMAGE_OPTIONAL_HEADER32)((DWORD)pPEHeader + IMAGE_SIZEOF_FILE_HEADER);
+	if (*((PWORD)*pImageBuffer) != IMAGE_DOS_SIGNATURE)
+	{
+		printf("MZ文件标志头不存在！");
+		free(pImageBuffer);
+		return false;
+	}
+	PIMAGE_SECTION_HEADER pSectionHeader = NULL;
+	pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	DWORD Max = pSectionHeader->SizeOfRawData > pSectionHeader->Misc.VirtualSize ? pSectionHeader->SizeOfRawData : pSectionHeader->Misc.VirtualSize;
+	PIMAGE_SECTION_HEADER pSectionHeader_tmp = pSectionHeader;
+	pSectionHeader_tmp += (pPEHeader->NumberOfSections - 1);
+	pSectionHeader->SizeOfRawData = pSectionHeader->Misc.VirtualSize = Align(pSectionHeader_tmp->VirtualAddress + Max - pOptionHeader->SizeOfHeaders, pOptionHeader->SectionAlignment);
+	pPEHeader->NumberOfSections = 1;
+
+	return true;
 }
 
 BOOL MemeryToFile(IN LPVOID pMemBuffer, IN size_t size, OUT LPSTR lpszFile)
@@ -429,6 +491,7 @@ void AddCharacterCompressionToMemory(IN const char* shellCode, size_t shellCodeS
 		*((unsigned char*)(pFileState)+i) = strtoul(temp, NULL, 16);
 	}
 }
+
 DWORD Align(DWORD size, DWORD ALIGN_BASE)
 {
 	assert(0 != ALIGN_BASE);

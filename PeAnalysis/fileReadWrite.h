@@ -51,17 +51,25 @@ DWORD CopyImageBufferToNewBuffer(IN LPVOID pImageBuffer, OUT LPVOID* pNewBuffer)
 BOOL AddImageBufferToShellCode(IN OUT LPVOID pImageBuffer, IN const char* pShellCode, IN size_t pShellCodeSize);
 
 //**************************************************************************								
-//AddImageBufferToShellCode:将FileBuffer中添加代码								
+//EnlargedNodalRegion:扩大节区
 //参数说明：								
 //pFileBuffer FileBuffer指针								
 //pNewBuffer NewBuffer指针
-//pShellCode ShellCode指针
+//EnlargeSize 扩大节区的大小
 //返回值说明：								
 //读取失败返回false  否则返回true							
 //**************************************************************************		
-BOOL AddFileBufferToShellCode(IN LPVOID pFileBuffer, IN const char* pShellCode, IN size_t ShellCodeSize);
+BOOL EnlargedNodalRegion(IN LPVOID pImageBuffer, OUT LPVOID* pNewBuffer, size_t EnlargeSize);
 
 
+//**************************************************************************								
+//EnlargedNodalRegion:合并节区
+//参数说明：								
+//pFileBuffer FileBuffer指针								
+//返回值说明：								
+//读取失败返回false  否则返回true							
+//**************************************************************************		
+BOOL MergingSection(IN OUT LPVOID* pImageBuffer);
 
 //**************************************************************************								
 //MemeryTOFile:将内存中的数据复制到文件								
